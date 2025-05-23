@@ -1,0 +1,142 @@
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, Optional
+
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jwt.exceptions import InvalidTokenError
+from passlib.context import CryptContext
+
+import db_classes
+from db_classes import ObjectNotFound
+
+from base_models import TokenData, User
+
+# Hash and secret declarations
+SECRET_KEY = "4a69116ef9fb50ec1c0ee3499723ef5bc00cf504042e13605583f41e03191f2e"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error = False)
+
+
+def verify_password(plain_password:str, hashed_password:str) -> bool:
+    ''' Verifies if a supplied password matches the hashed password and returns a bool indicating if matches.
+    
+    plain_password: supplied password.
+    
+    hashed_password: saved hashed password, typically stored in database.
+    '''
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password:str) -> str:
+    ''' Generates the hashed password for a given plain password. Useful for testing.
+    
+    password: Plain password to be hashed.
+    '''
+    return pwd_context.hash(password)
+
+
+def get_user(username: str) -> db_classes.User:
+    ''' Checks for existence of user in database and return as an instance of User from db_classes.
+    Raises a ObjectNotFound error if does not exist.
+
+    username: username to be searched in database.
+    '''
+    try:
+        user = db_classes.User(username=username)
+    except ObjectNotFound:
+        raise ObjectNotFound
+    if user:
+        return user
+
+
+def authenticate_user(username: str, password: str):
+    ''' Authenticates the user against the stored password. If successful, returns the an instance of User from db_classes.
+    If unsuccessful, returns a negative boolean. If user is not found, returns a ObjectNotFound exception.
+
+    username: username to be searched in database.
+    '''
+    try:
+        user = get_user(username)
+    except ObjectNotFound:
+        raise ObjectNotFound
+    if not verify_password(password, user.password):
+        return False
+    return user
+
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    ''' Creates a JWT access token as per FastAPI documentation. Returns the encoded JWT as string.
+    
+    data: dict containing key "sub" and the username, following jwt standard.
+
+    expires_delta: the time for expiration. If not provided, 15 minutes will be used by default.
+    '''
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> db_classes.User:
+    ''' Checks if JWT token is valid for the current user. If valid, returns an instance of User from db_classes.
+    If no username is stored in the token or is not found, or token is invalid, raises HTTPException and returns 401 status code.
+    
+    token: current token to be checked.
+    '''
+    # Creating the exception to return if not valid, following FastAPI documentation and standard
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except InvalidTokenError:
+        raise credentials_exception
+    try:
+        user = get_user(username=token_data.username)
+    except ObjectNotFound:
+        raise credentials_exception
+    return user
+
+def get_current_user_optional(
+    token: Annotated[Optional[str], Depends(oauth2_scheme)]
+) -> User:
+    if token is None:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        
+        if username is None:
+            return None
+        existing_user = db_classes.User(username=username)
+        return User(username = existing_user.username, role = existing_user.role, active = not existing_user.disabled)
+    except InvalidTokenError:
+        return None
+
+
+async def get_current_active_user(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    ''' Checks if the current user is active.
+    Returns an HTTPException with status code 400 if inactive.
+    Returns the provided user if active.
+
+    current_user: User to check if active.
+    '''
+    print(current_user)
+    if current_user.disabled:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user

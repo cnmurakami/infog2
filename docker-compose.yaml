@@ -1,0 +1,35 @@
+services:
+
+  app:
+    build: ./app
+    ports:
+      - "5000:80"
+    links:
+      - db
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./app:/app
+
+  db:
+    image: postgres:17.5
+    ports: 
+      - "5431:5432"
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: infog2
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    volumes:
+      - ./postgresql:/docker-entrypoint-initdb.d
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "infog2"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres-data:
