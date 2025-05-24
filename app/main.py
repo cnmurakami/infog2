@@ -107,20 +107,6 @@ async def refresh_access_token(
                          (current_user.id, access_token, sql_timestamp_string,))
     return Token(access_token=access_token, token_type="bearer")
 
-
-@app.get("/users/me/", response_model=User)
-async def read_users_me(
-    current_user: Annotated[User, Depends(utils.get_current_active_user)]
-):
-    return current_user
-
-
-@app.get("/users/me/items/")
-async def read_own_items(
-    current_user: Annotated[User, Depends(utils.get_current_active_user)],
-):
-    return [{"item_id": "Foo", "owner": current_user.username}]
-
 @app.get("/clients")
 async def get_clients(
     current_user: Annotated[User, Depends(utils.get_current_active_user)],
@@ -166,9 +152,16 @@ async def create_client(
 
     name: Client's name.
     
-    email: Client's email.
+    email: Client's email (must be valid and unique).
 
-    cpf: Client's cpf.
+    cpf: Client's cpf (must be valid and unique).
+
+    Example request:
+            {
+                "name": "a_valid_name",
+                "email": "a_valid_and_unique_email",
+                "cpf": "a_valid_and_unique_cpf"
+            }
     """
     if len(new_client.name) < 1:
         raise HTTPException(status_code=400, detail= "Nome não pode ser vazio")
@@ -199,10 +192,10 @@ async def get_client_by_id(
     id: int
 ):
     ''' Returns a client properties identified by id.
-    
+
     Returns 204 if no client is found.
-    
-    id = ID to be searched in database.
+
+    id: ID of the client to searched
     '''
     try:
         if type(id) != int or id<1:
@@ -229,7 +222,22 @@ async def put_client(
     
     Returns 204 if no client is found.
     
-    id = ID to be searched in database.
+    Accepts new name, cpf and email. At least one is required.
+
+    id: ID of the client to be updated
+
+    name: Client's new name.
+    
+    email: Client's new email (must be valid and unique).
+
+    cpf: Client's new cpf (must be valid and unique).
+
+    Example requests:
+            {
+                "name": "a_valid_new_name",
+                "email": "a_valid_and_unique_new_email",
+                "cpf": "a_valid_and_unique_new_cpf"
+            }
     '''
     if current_user.role > 1:
         raise HTTPException(status_code=403, detail= "Apenas Admins podem editar clientes")
