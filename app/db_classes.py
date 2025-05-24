@@ -40,3 +40,23 @@ class Client():
         self.email = existing_client[2]
         self.cpf = existing_client[3]
         return
+    
+class Product():
+    def __init__(self, id:int = -1, description:str = '', sell_value: float = -1, barcode:str = "", section_id: int = -1, stock: int = -1, expiration_date:str = ""):
+        if barcode != '':
+            query = """SELECT * FROM products WHERE barcode = %s limit 1"""
+            arg = barcode
+        elif id != -1:
+            query = """SELECT * FROM products WHERE id = %s limit 1"""
+            arg = id
+        existing_product = db_operations.select(query, (arg,), 1)
+        if existing_product==None:
+            raise ObjectNotFound
+        self.id = int(existing_product[0])
+        self.description = existing_product[1]
+        self.sell_value = existing_product[2]
+        self.barcode = existing_product[3]
+        self.section_id = existing_product[4]
+        self.stock = existing_product[5]
+        self.expiration_date = existing_product[6]
+        return

@@ -9,9 +9,11 @@ from passlib.context import CryptContext
 
 import db_classes
 from db_classes import ObjectNotFound
+import db_operations
 
 from base_models import TokenData, User
 import random
+import base64
 
 # Hash and secret declarations
 SECRET_KEY = "4a69116ef9fb50ec1c0ee3499723ef5bc00cf504042e13605583f41e03191f2e"
@@ -216,3 +218,42 @@ def generate_cpf():
         cpf.append(11 - val if val > 1 else 0)
     string_cpf = [str(x) for x in cpf]
     return ''.join(string_cpf)
+
+def get_section_id(name: str):
+    try:
+        name = '%'+name.lower()+'%'
+        section_id = db_operations.select("""SELECT id from sections where name ILIKE %s LIMIT 1""", (name,), 1)[0]
+        return section_id
+    except:
+        raise ObjectNotFound
+
+def get_product_images_from_id(id:int) -> dict:
+    '''
+    Returns a dictionary with images from a specified product id.
+    Raises ObjectNotFound if no image is found
+    
+    id:int: The product id to be looked for. 
+    '''
+    query = """
+        SELECT image from images where product_id = %s
+    """
+    results_raw = db_operations.select(query, (id,))
+    # print(len(results_raw[0]))
+    # results_raw = results_raw[0]
+    results = {}
+    if len(results_raw) == 0:
+        return results
+    for i in range(len(results_raw)):
+        results[i] = base64.b64encode(results_raw[i][0]).decode("utf-8")
+    return results
+
+def save_image_to_bytea_sql(image:str, product_id):
+    '''
+    Saves an image in str format (from BASE64) into the image table
+    '''
+    if "," in image: # Remove header if any
+        _, image = image.split(",", 1)
+    image_bytes = base64.b64decode(image)
+    bytea_hex = "\\x" + image_bytes.hex()
+    result = db_operations.insert("INSERT INTO images(product_id, image) values (%s, %s)", (product_id, bytea_hex), "id")
+    return result
