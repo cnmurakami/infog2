@@ -23,7 +23,7 @@ def test_post_register_standard_ok_01():
             'username': username,
             'password': '1234'
         })
-    assert response.status_code  == 200
+    assert response.status_code == 200
 
 def test_post_register_standard_fail_01():
     response = client.post(
@@ -32,7 +32,7 @@ def test_post_register_standard_fail_01():
             'username': 'test_admin',
             'password': '1234'
         })
-    assert response.status_code  == 400
+    assert response.status_code == 400
     assert response.json() == { "detail": "Usuário já existe" }
 
 def test_post_register_standard_fail_02():
@@ -42,7 +42,7 @@ def test_post_register_standard_fail_02():
             'username': '',
             'password': '1234'
         })
-    assert response.status_code  == 400
+    assert response.status_code == 400
     assert response.json() == { "detail": "Usuário e/ou senha em branco" }
     
 def test_post_register_standard_fail_03():
@@ -52,7 +52,7 @@ def test_post_register_standard_fail_03():
             'username': 'novo_usuario',
             'password': ''
         })
-    assert response.status_code  == 400
+    assert response.status_code == 400
     assert response.json() == { "detail": "Usuário e/ou senha em branco" }
     
 def test_post_register_with_role_fail_01():
@@ -64,7 +64,7 @@ def test_post_register_with_role_fail_01():
             'password': '1234',
             'role': '1'
         })
-    assert response.status_code  == 403
+    assert response.status_code == 403
     assert response.json() == {
         "detail": "Precisa estar logado para definir permissão"
     }
@@ -79,7 +79,7 @@ def test_post_register_with_role_fail_02():
             'password': '1234',
             'role': '1'
         })
-    assert response.status_code  == 403
+    assert response.status_code == 403
     assert response.json() == {
         "detail": "Sem autorização para criar usuário com as permissões fornecidas"
     }
@@ -94,7 +94,7 @@ def test_post_register_with_role_ok_02():
             'password': '1234',
             'role': '2'
         })
-    assert response.status_code  == 200
+    assert response.status_code == 200
 
 def test_post_register_with_role_ok_03():
     username = f'test{datetime.now()}'
@@ -106,4 +106,4 @@ def test_post_register_with_role_ok_03():
             'password': '1234',
             'role': '1'
         })
-    assert response.status_code  == 200
+    assert response.status_code == 200

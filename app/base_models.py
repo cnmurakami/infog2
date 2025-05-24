@@ -22,3 +22,13 @@ class NewUser(BaseModel):
     username: str
     password: str
     role: int | None = None
+
+class NewClient(BaseModel):
+    name: str
+    email: str
+    cpf: str
+
+class UpdateClient(BaseModel):
+    name: str | None = None
+    email: str | None = None
+    cpf: str | None = None

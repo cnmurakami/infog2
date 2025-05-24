@@ -11,6 +11,7 @@ import db_classes
 from db_classes import ObjectNotFound
 
 from base_models import TokenData, User
+import random
 
 # Hash and secret declarations
 SECRET_KEY = "4a69116ef9fb50ec1c0ee3499723ef5bc00cf504042e13605583f41e03191f2e"
@@ -136,7 +137,82 @@ async def get_current_active_user(
 
     current_user: User to check if active.
     '''
-    print(current_user)
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
+
+def get_client(query:str):
+    '''Searchs for clients both from email or cpf (must be exact match).
+    Returns an instance of Client from db_classes if found.
+    Raises ObjectNotFound if no results.
+
+    query: query to search, either cpf or email
+    '''
+    try:
+        if validate_cpf(query):
+            return db_classes.Client(cpf = query)
+        if validate_email(query):
+            return db_classes.Client(email = query)
+        raise ObjectNotFound
+    except ObjectNotFound:    
+        raise ObjectNotFound
+    
+def validate_cpf(cpf:str) -> bool:
+    ''' Validates if CPF is valid. Returns a bool.
+
+    cpf: CPF to be validated
+    '''
+    if type(cpf) != str:
+        return False
+    
+    if len(cpf) != 11 or len(set(cpf)) == 1:
+        return False
+
+    # First digit validation:
+    numbers = [int(digit) for digit in cpf if digit.isdigit()]
+    sum_of_products = sum(a*b for a, b in zip(numbers[0:9], range(10, 1, -1)))
+    expected_digit = (sum_of_products * 10 % 11) % 10
+    if numbers[9] != expected_digit:
+        return False
+
+    # Second digit validation:
+    sum_of_products = sum(a*b for a, b in zip(numbers[0:10], range(11, 1, -1)))
+    expected_digit = (sum_of_products * 10 % 11) % 10
+    if numbers[10] != expected_digit:
+        return False
+
+    return True
+
+def validate_email(email: str) -> bool:
+    ''' Validates if email is valid. Returns a bool.
+
+    For an email to be valid, must have x chars + '@' + y chars + '.' + z chars.
+
+    email: email to be validated.
+    '''
+    try:
+        address,server = email.split("@")
+        if len(address) == 0:
+            return False
+        if server.count('.') != 1:
+            return False
+        
+        provider, location = server.split(".")
+        if len(provider) == 0:
+            return False
+        if len(location) == 0:
+            return False
+        
+        return True
+    except:
+        return False
+    
+def generate_cpf():
+    '''Generates random valid CPF
+    '''
+    cpf = [random.randint(0, 9) for x in range(9)]                              
+    for i in range(2):
+        val = sum([(len(cpf) + 1 - j) * v for j, v in enumerate(cpf)]) % 11
+        cpf.append(11 - val if val > 1 else 0)
+    string_cpf = [str(x) for x in cpf]
+    return ''.join(string_cpf)
