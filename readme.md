@@ -7,10 +7,10 @@ Repositório criado para o teste técnico
 <p> Clone o repositório, monte o docker-compose e aguarde os containers iniciarem</p>
 
 ```powershell
-docker-compose up
+docker-compose up -d
 ```
 
-Após a inicialização dos serviços, o servidor poderá ser acessado através do endereço <i><b>localhost:5000</b></i>.
+Após a inicialização dos serviços, o servidor poderá ser acessado através do endereço <i><b>localhost:5000</b></i> (configurado no docker-compose).
 O log do container app deve ser parecido com este:
 
 ```powershell
@@ -46,7 +46,7 @@ Caso necessite inicializar o banco, o arquivo de inicialização está em /postg
 
 Caso utilize uma outra imagem de container, copie o arquivo para o caminho /docker-entrypoint-initdb.d/ e expose a porta correta.
 
-## Utilizando
+## Utilização
 Após clonar o repositório, navegue até a pasta /app.
 
 Execute o comando a seguir:
@@ -54,6 +54,10 @@ Execute o comando a seguir:
 ```powershell
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
+
+Neste caso, a aplicação será executada no endereço  <i><b>localhost:8000</b></i>.
+
+Devido a diferenças de ambiente, a aplicação tentará se conectar ao banco de duas formas: via localhost na porta 5431 ou via 'db' na porta 5432 (para ser utilizado via docker). Ajuste as configurações do banco a ser utilizado de acordo.
 
 # Acessando o banco
 
