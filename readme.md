@@ -1,9 +1,13 @@
 [![Language](https://img.shields.io/badge/lang-pt--BR-green.svg)](https://github.com/cnmurakami/infog2/blob/main/readme.md)
 [![Language](https://img.shields.io/badge/lang-en--US-blue.svg)](https://github.com/cnmurakami/infog2/blob/main/readme-en.md)
 
-# Teste Técnico - Infog2
+# Apresentação
 
-Repositório criado para o teste técnico
+Este repositório tem como fim simular um sistema back-end utilizando Python com FastAPI, Postgres e containers Docker para um sistema de ordens.
+
+Ele utiliza 4 tabelas principais - users, clients, products e orders - e outras tabelas relacionais entre si.
+
+Uma vez que o servidor estiver rodando, a lista de rotas - assim como sua descrição, exemplos de uso, detalhes das variáveis e exemplo de retorno, pode ser visualizada na rota <i>/docs</i>.
 
 # Como utilizar (Com Docker)
 

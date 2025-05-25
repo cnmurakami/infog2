@@ -1,9 +1,13 @@
 [![Language](https://img.shields.io/badge/lang-pt--BR-green.svg)](https://github.com/cnmurakami/infog2/blob/main/readme.md)
 [![Language](https://img.shields.io/badge/lang-en--US-blue.svg)](https://github.com/cnmurakami/infog2/blob/main/readme-en.md)
 
-# Test - Infog2
+# Presentation
 
-Repository created for the technical test.
+This repository aims to simulate a back-end system using Python with FastAPI, Postgres, and Docker containers for an order management system.
+
+It uses four main tables — users, clients, products, and orders — along with other relational tables.
+
+Once the server is running, the list of routes — as well as their descriptions, usage examples, variable details, and response examples — can be viewed at the <i>/docs</i> route.
 
 # How to use (With Docker)
 
