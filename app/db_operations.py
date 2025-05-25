@@ -25,7 +25,7 @@ def select(query:str, args:tuple = [], fetch = 0):
 
 def insert(query:str, args:tuple, return_field=''):
     if len(return_field) > 0:
-        query += f"""RETURNING {return_field}"""
+        query += f""" RETURNING {return_field}"""
     db_connection = postgres_connection();
     db_cursor = db_connection.cursor()
     db_cursor.execute(query, args,)

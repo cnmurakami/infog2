@@ -6,8 +6,10 @@ RUN pip install python-multipart
 RUN pip install "python-jose[cryptography]"
 RUN pip install "passlib[bcrypt]"
 RUN pip install --no-cache-dir fastapi uvicorn
+RUN pip install pytz
 RUN pip install jwt
 RUN pip install pyjwt
+RUN pip install pytest
 
 RUN mkdir app
 WORKDIR /app/

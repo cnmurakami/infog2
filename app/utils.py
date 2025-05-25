@@ -8,12 +8,12 @@ from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 
 import db_classes
-from db_classes import ObjectNotFound
 import db_operations
 
 from base_models import TokenData, User
 import random
 import base64
+import pytz
 
 # Hash and secret declarations
 SECRET_KEY = "4a69116ef9fb50ec1c0ee3499723ef5bc00cf504042e13605583f41e03191f2e"
@@ -22,6 +22,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error = False)
 
+class ObjectNotFound(Exception):
+    pass
 
 def verify_password(plain_password:str, hashed_password:str) -> bool:
     ''' Verifies if a supplied password matches the hashed password and returns a bool indicating if matches.
@@ -222,38 +224,28 @@ def generate_cpf():
 def get_section_id(name: str):
     try:
         name = '%'+name.lower()+'%'
-        section_id = db_operations.select("""SELECT id from sections where name ILIKE %s LIMIT 1""", (name,), 1)[0]
+        section_id = db_operations.select("SELECT id from sections where name ILIKE %s LIMIT 1", (name,), 1)[0]
         return section_id
     except:
         raise ObjectNotFound
 
-def get_product_images_from_id(id:int) -> dict:
-    '''
-    Returns a dictionary with images from a specified product id.
-    Raises ObjectNotFound if no image is found
-    
-    id:int: The product id to be looked for. 
-    '''
-    query = """
-        SELECT image from images where product_id = %s
-    """
-    results_raw = db_operations.select(query, (id,))
-    # print(len(results_raw[0]))
-    # results_raw = results_raw[0]
-    results = {}
-    if len(results_raw) == 0:
-        return results
-    for i in range(len(results_raw)):
-        results[i] = base64.b64encode(results_raw[i][0]).decode("utf-8")
-    return results
+def get_status_id(name: str):
+    try:
+        name = '%'+name.lower()+'%'
+        status_id = db_operations.select("SELECT id from order_status where description ILIKE %s LIMIT 1", (name,), 1)[0]
+        return status_id
+    except:
+        raise ObjectNotFound
 
-def save_image_to_bytea_sql(image:str, product_id):
-    '''
-    Saves an image in str format (from BASE64) into the image table
-    '''
-    if "," in image: # Remove header if any
-        _, image = image.split(",", 1)
-    image_bytes = base64.b64decode(image)
-    bytea_hex = "\\x" + image_bytes.hex()
-    result = db_operations.insert("INSERT INTO images(product_id, image) values (%s, %s)", (product_id, bytea_hex), "id")
-    return result
+def get_status_description(id: str):
+    try:
+        description = db_operations.select("SELECT description from order_status where id = %s LIMIT 1", (id,), 1)[0]
+        return description
+    except:
+        raise ObjectNotFound
+
+
+def convert_to_local_timezone(time: datetime, local_timezone:str = 'America/Sao_Paulo'):
+    local_tz = pytz.timezone(local_timezone)
+    dt_local = time.astimezone(local_tz)
+    return dt_local.strftime('%d/%m/%Y %H:%M:%S')

@@ -176,7 +176,7 @@ def test_get_client_ok_01():
         headers={"Authorization": f"Bearer {operator}"},
         )
     assert response.status_code == 200
-    assert response.json()['nome'] == 'Laurence Howe'
+    assert response.json()['name'] == 'Laurence Howe'
 
 def test_get_client_ok_02():
     response = client.get(
@@ -184,14 +184,14 @@ def test_get_client_ok_02():
         headers={"Authorization": f"Bearer {operator}"},
         )
     assert response.status_code == 200
-    assert response.json()['nome'] == 'Angela Watts'
+    assert response.json()['name'] == 'Angela Watts'
 
 def test_get_client_fail_01():
     response = client.get(
         "/clients/-1",
         headers={"Authorization": f"Bearer {operator}"},
         )
-    assert response.status_code == 204
+    assert response.status_code == 400
 
 def test_get_client_fail_02():
     response = client.get(
@@ -219,8 +219,8 @@ def test_update_client_ok_01():
         })
     assert response.status_code == 200
     assert response.json()["message"] == 'Cliente atualizado com sucesso'
-    assert response.json()["nome"] == 'Fulano'
-    assert response.json()["email"] == 'abcd@aha.com'
+    assert response.json()["detail"]["name"] == 'Fulano'
+    assert response.json()["detail"]["email"] == 'abcd@aha.com'
 
 def test_update_client_ok_02():
     new_cpf = generate_cpf()
@@ -232,7 +232,7 @@ def test_update_client_ok_02():
         })
     assert response.status_code == 200
     assert response.json()["message"] == 'Cliente atualizado com sucesso'
-    assert response.json()["cpf"] == new_cpf
+    assert response.json()["detail"]["cpf"] == new_cpf
 
 def test_update_client_ok_03():
     response = client.put(
@@ -245,9 +245,9 @@ def test_update_client_ok_03():
         })
     assert response.status_code == 200
     assert response.json()["message"] == 'Cliente atualizado com sucesso'
-    assert response.json()["nome"] == 'Nadine Curtis'
-    assert response.json()["email"] == 'nadine.curtis@gmail.com'
-    assert response.json()["cpf"] == '37030645014'
+    assert response.json()["detail"]["name"] == 'Nadine Curtis'
+    assert response.json()["detail"]["email"] == 'nadine.curtis@gmail.com'
+    assert response.json()["detail"]["cpf"] == '37030645014'
 
 def test_update_client_fail_01():
     response = client.put(
@@ -332,6 +332,8 @@ def test_delete_client_ok_01():
     )
     assert delete_response.status_code == 200
     assert delete_response.json()['message'] == 'Cliente deletado com sucesso'
+    with pytest.raises(ObjectNotFound):
+        Client(id=id)
 
 def test_delete_client_fail_01():
     response = client.delete(

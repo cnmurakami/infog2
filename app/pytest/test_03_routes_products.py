@@ -55,7 +55,7 @@ def test_get_products_04():
     assert response.status_code == 200
     has_wrong_products = False
     for product in response.json():
-        if product["section_id"] != 2:
+        if product["section_name"] != 'Marcearia':
             has_wrong_products = True
             break
     assert not has_wrong_products
@@ -65,12 +65,12 @@ def test_get_products_05():
         "/products",
         headers={"Authorization": f"Bearer {operator}"},
         params={
-            'price':5.00
+            'sell_value':5.00
         })
     assert response.status_code == 200
     has_wrong_products = False
     for product in response.json():
-        if product["price"] > 5:
+        if product["sell_value"] > 5:
             has_wrong_products = True
             break
     assert not has_wrong_products
@@ -82,15 +82,15 @@ def test_get_products_06():
         params={
             'category': 'hortifruti',
             'available': True,
-            'price': 5.50
+            'sell_value': 5.50
         })
     assert response.status_code == 200
     has_wrong_products = False
     for product in response.json():
-        if product["section_id"] != 8:
+        if product["section_name"] != 'Hortifruti':
             has_wrong_products = True
             break
-        if product["price"] > 5.50:
+        if product["sell_value"] > 5.50:
             has_wrong_products = True
             break
         if product["stock"] < 1:
@@ -295,7 +295,7 @@ def test_get_product_fail_01():
         "/products/-1",
         headers={"Authorization": f"Bearer {operator}"},
         )
-    assert response.status_code == 204
+    assert response.status_code == 400
 
 def test_get_product_fail_02():
     response = client.get(
@@ -321,14 +321,15 @@ def test_delete_product_ok_01():
         })
     assert create_response.status_code == 200
     assert create_response.json()['message'] == 'Produto cadastrado com sucesso'
-    id = create_response.json()['id']
+    id = create_response.json()['details']['id']
     delete_response = client.delete(
         f"/products/{id}",
         headers={"Authorization": f"Bearer {admin}"},
     )
     assert delete_response.status_code == 200
     assert delete_response.json()['message'] == 'Produto deletado com sucesso'
-    assert get_product_images_from_id(id) == {}
+    with pytest.raises(ObjectNotFound):
+        Product(id=id).get_images() == {}
 
 def test_delete_product_fail_01():
     response = client.delete(

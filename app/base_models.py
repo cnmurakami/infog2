@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import List
 
 class Token(BaseModel):
     access_token: str
@@ -40,7 +41,7 @@ class NewProduct(BaseModel):
     section_id: int
     stock: int
     expiration_date: str | None = None
-    images: list | None = None
+    images: List[str] | None = None
 
 class UpdateProduct(BaseModel):
     description: str | None = None
@@ -49,4 +50,17 @@ class UpdateProduct(BaseModel):
     section_id: int | None = None
     stock: int | None = None
     expiration_date: str | None = None
-    images: list | None = None
+    images: List[str] | None = None
+
+class Product_Quantity(BaseModel):
+    product_id: int
+    quantity: int
+
+class NewOrder(BaseModel):
+    client_id: int
+    products: List[Product_Quantity]
+
+class UpdateOrder(BaseModel):
+    status: str | None = None
+    products_to_include: List[Product_Quantity] | None = None
+    products_to_remove: List[Product_Quantity] | None = None
