@@ -1,10 +1,13 @@
+[![Language](https://img.shields.io/badge/lang-pt--BR-green.svg)](https://github.com/cnmurakami/infog2/blob/main/readme.md)
+[![Language](https://img.shields.io/badge/lang-en--US-blue.svg)](https://github.com/cnmurakami/infog2/blob/main/readme-en.md)
+
 # Teste Técnico - Infog2
 
 Repositório criado para o teste técnico
 
 # Como utilizar (Com Docker)
 
-<p> Clone o repositório, monte o docker-compose e aguarde os containers iniciarem</p>
+Clone o repositório, monte o docker-compose e aguarde os containers iniciarem
 
 ```powershell
 docker-compose up -d
@@ -36,8 +39,10 @@ pip install python-multipart
 pip install "python-jose[cryptography]"
 pip install "passlib[bcrypt]"
 pip install --no-cache-dir fastapi uvicorn
+pip install pytz
 pip install jwt
 pip install pyjwt
+pip install pytest
 ```
 
 O banco de dados utilizados é o PostgreSQL versão 17.5.
@@ -71,6 +76,28 @@ POSTGRES_DB =  infog2
 
 # Testes
 
+## Via Docker
+Acesse o terminal do container do app e execute o comando para executar o pytest. O nome do container deve ser teste-infog2-app-1, mas caso não seja, utilize <i>docker ps</i> para listar
+
+```powershell
+docker ps
+
+docker exec -it teste-infog2-app-1 sh 
+
+pytest
+
+```
+
+Por padrão, o terminal do container deve acessar a pasta correta, porém, se não for o caso, altere a pasta com o seguinte comando:
+
+```powershell
+cd /app
+
+pytest
+```
+
+## Via local
+
 Em <i>/app/pytest/</i> se encontram os arquivos de testes.
 Para os que necessitam de autenticação, temos dois usuários previamente criados, e também seus tokens para teste (expiram em 2026/05/23):
 ```python
@@ -90,8 +117,4 @@ Caso necessite atualizar os tokens, eles se encontram em <i>/app/pytest/tokens.p
 Para executar os testes, retorne para a pasta <i>/app</i> e execute o comando:
 ```powershell
 pytest
-```
-ou
-```powershell
-python -m pytest
 ```
