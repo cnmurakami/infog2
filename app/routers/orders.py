@@ -113,10 +113,10 @@ async def get_orders(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Data de fim inválida")
     else:
         end_date = datetime.now(pytz.timezone('America/Sao_Paulo'))
-    if start_date>end_date:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Data de fim início não pode ser maior que data de fim")
     start_date = start_date.strftime("%Y-%m-%d") + " 00:00:00+00"
     end_date = end_date.strftime("%Y-%m-%d") + " 23:59:59+00"
+    if start_date > end_date:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Data de fim início não pode ser maior que data de fim")
     args.append(start_date)
     args.append(end_date)
     try:

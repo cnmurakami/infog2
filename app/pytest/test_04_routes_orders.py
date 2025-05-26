@@ -10,14 +10,14 @@ from .tokens import admin, operator
 
 client = TestClient(app)
 
-def test_get_orders_01():
+def test_get_orders_ok_01():
     response = client.get(
         "/orders",
         headers={"Authorization": f"Bearer {operator}"},)
     assert response.status_code == 200
     assert len(response.json()) == 20
 
-def test_get_orders_02():
+def test_get_orders_ok_02():
     first_response = client.get(
         "/orders",
         headers={"Authorization": f"Bearer {operator}"},)
@@ -30,7 +30,7 @@ def test_get_orders_02():
     assert second_response.status_code == 200
     assert second_response.json()[0] == first_response.json()[5]
 
-def test_get_orders_03():
+def test_get_orders_ok_03():
     response = client.get(
         "/orders",
         headers={"Authorization": f"Bearer {operator}"},
@@ -43,7 +43,7 @@ def test_get_orders_03():
         for order in response.json()
     )
 
-def test_get_orders_04():
+def test_get_orders_ok_04():
     response = client.get(
         "/orders",
         headers={"Authorization": f"Bearer {operator}"},
@@ -56,7 +56,7 @@ def test_get_orders_04():
         for order in response.json()
     )
 
-def test_get_orders_05():
+def test_get_orders_ok_05():
     response = client.get(
         "/orders",
         headers={"Authorization": f"Bearer {operator}"},
@@ -66,7 +66,7 @@ def test_get_orders_05():
     assert response.status_code == 200
     assert all(order["status"] == 'Em transporte' for order in response.json())
 
-def test_get_orders_06():
+def test_get_orders_ok_06():
     response = client.get(
         "/orders",
         headers={"Authorization": f"Bearer {operator}"},
@@ -75,6 +75,108 @@ def test_get_orders_06():
         })
     assert response.status_code == 200
     assert all(order["client_id"] == 3 for order in response.json())
+
+def test_get_orders_ok_07():
+    response = client.get(
+        "/orders",
+        headers={"Authorization": f"Bearer {operator}"},
+        params={
+            'start_date': "01/04/2025",
+            'end_date': "30/04/2025",
+        })
+    assert response.status_code == 200
+    assert all(order["created_at"][:7] == "2025-04" for order in response.json())
+
+def test_get_orders_ok_08():
+    response = client.get(
+        "/orders",
+        headers={"Authorization": f"Bearer {operator}"},
+        params={
+            'start_date': "01/03/2025",
+            'end_date': "31/03/2025",
+        })
+    assert response.status_code == 200
+    assert all(order["created_at"][:7] == "2025-03" for order in response.json())
+
+def test_get_orders_ok_09():
+    response = client.get(
+        "/orders",
+        headers={"Authorization": f"Bearer {operator}"},
+        params={
+            'start_date': "01/03/2025",
+        })
+    assert response.status_code == 200
+    assert all(int(order["created_at"][5:7]) >= 3 for order in response.json())
+
+def test_get_orders_ok_10():
+    response = client.get(
+        "/orders",
+        headers={"Authorization": f"Bearer {operator}"},
+        params={
+            'end_date': "28/02/2025",
+        })
+    assert response.status_code == 200
+    assert all(int(order["created_at"][5:7]) < 3 for order in response.json())
+
+def test_get_orders_fail_01():
+    response = client.get(
+        "/orders",
+        )
+    assert response.status_code == 401
+    assert response.json() == {
+        "detail": "Could not validate credentials"
+    }
+
+def test_get_orders_fail_02():
+    response = client.get(
+        "/orders",
+        headers={"Authorization": f"Bearer {operator}"},
+        params={
+            'start_date': "31/02/2025",
+        })
+    assert response.status_code == 400
+    assert response.json()['detail'] == "Data de início inválida"
+
+def test_get_orders_fail_03():
+    response = client.get(
+        "/orders",
+        headers={"Authorization": f"Bearer {operator}"},
+        params={
+            'end_date': "31/02/2025",
+        })
+    assert response.status_code == 400
+    assert response.json()['detail'] == "Data de fim inválida"
+
+def test_get_orders_fail_03():
+    response = client.get(
+        "/orders",
+        headers={"Authorization": f"Bearer {operator}"},
+        params={
+            'section': "aaaa",
+        })
+    assert response.status_code == 400
+    assert response.json()['detail'] == "Categoria não localizada, por favor redefina o filtro"
+
+def test_get_orders_fail_04():
+    response = client.get(
+        "/orders",
+        headers={"Authorization": f"Bearer {operator}"},
+        params={
+            'order_status': "aaaa",
+        })
+    assert response.status_code == 400
+    assert response.json()['detail'] == "Status não localizado, por favor redefina o filtro"
+
+def test_get_orders_fail_05():
+    response = client.get(
+        "/orders",
+        headers={"Authorization": f"Bearer {operator}"},
+        params={
+            'client_id': 99999999999,
+        })
+    assert response.status_code == 400
+    assert response.json()['detail'] == "Cliente não localizado, por favor redefina o filtro"
+
 
 def test_create_orders_ok_01():
     response = client.post(
