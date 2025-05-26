@@ -202,8 +202,8 @@ def test_get_order_fail_02():
     }
 
 def test_delete_order_ok_01():
-    product_1 = Product(2)
-    product_2 = Product(5)
+    product_1 = Product(id = 2)
+    product_2 = Product(id = 5)
     initial_stock_product_1 = product_1.stock
     initial_stock_product_2 = product_2.stock
     create_response = client.post(
@@ -224,8 +224,8 @@ def test_delete_order_ok_01():
         })
     assert create_response.status_code == 200
     assert create_response.json()['message'] == 'Ordem criada com sucesso'
-    product_1 = Product(2)
-    product_2 = Product(5)
+    product_1 = Product(id=2)
+    product_2 = Product(id=5)
     updated_stock_product_1 = product_1.stock
     updated_stock_product_2 = product_2.stock
     assert updated_stock_product_1 == initial_stock_product_1 - 10
@@ -239,9 +239,9 @@ def test_delete_order_ok_01():
     assert delete_response.status_code == 200
     assert delete_response.json()['message'] == 'Ordem deletada com sucesso'
     with pytest.raises(ObjectNotFound):
-        Order(id).get_images() == {}
-    product_1 = Product(2)
-    product_2 = Product(5)
+        Order(id = id).get_images() == {}
+    product_1 = Product(id=2)
+    product_2 = Product(id=5)
     final_stock_product_1 = product_1.stock
     final_stock_product_2 = product_2.stock
     assert final_stock_product_1 == initial_stock_product_1

@@ -60,21 +60,31 @@ async def register_user(
         raise HTTPException(status_code=400, detail= "Usuário já existe")
     except ObjectNotFound:
         encrypted_password = utils.get_password_hash(form_data.password)
-        query = """SELECT id from roles ORDER BY id DESC LIMIT 1"""
-        lowest_role_id = db_operations.select(query=query, fetch=1)[0]
-        if form_data.role:
-            if not current_user:
-                raise HTTPException(status_code=403, detail= "Precisa estar logado para definir permissão")
-            if form_data.role < 1 or form_data.role > lowest_role_id:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Permissão fornecida não existe")
-            if form_data.role < current_user.role:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail= "Sem autorização para criar usuário com as permissões fornecidas")
-            query = """INSERT INTO users (username, password_hash, role_id) VALUES(%s, %s, %s)"""
-            result = db_operations.insert(query, (form_data.username, encrypted_password, form_data.role, ), "id")
-        else:
-            query = """INSERT INTO users (username, password_hash) VALUES(%s, %s)"""
-            result = db_operations.insert(query, (form_data.username, encrypted_password,), "id")
-        return {"message": "Usuário cadastrado com sucesso", "id": result}
+        try:
+            db_connection = db_operations.postgres_connection();
+            db_cursor = db_connection.cursor()
+            query = """SELECT id from roles ORDER BY id DESC LIMIT 1"""
+            lowest_role_id = db_operations.select(db_cursor, query=query, fetch=1)[0]
+            if form_data.role:
+                if not current_user:
+                    raise HTTPException(status_code=403, detail= "Precisa estar logado para definir permissão")
+                if form_data.role < 1 or form_data.role > lowest_role_id:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Permissão fornecida não existe")
+                if form_data.role < current_user.role:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail= "Sem autorização para criar usuário com as permissões fornecidas")
+                query = """INSERT INTO users (username, password_hash, role_id) VALUES(%s, %s, %s)"""
+                result = db_operations.insert(db_cursor, query, (form_data.username, encrypted_password, form_data.role, ), "id")
+            else:
+                query = """INSERT INTO users (username, password_hash) VALUES(%s, %s)"""
+                result = db_operations.insert(db_cursor, query, (form_data.username, encrypted_password,), "id")
+            db_connection.commit()
+            return {"message": "Usuário cadastrado com sucesso", "id": result}
+        except:
+            raise
+        finally:
+            db_cursor.close()
+            db_connection.close()
+
 
 
 @app.post("/token")
@@ -110,8 +120,13 @@ async def login_for_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
     sql_timestamp_string = datetime.fromtimestamp((datetime.now(timezone.utc)+access_token_expires).replace(tzinfo=None).timestamp())
-    db_operations.insert("INSERT INTO tokens (user_id, token, expire_at) VALUES (%s, %s, %s);",
+    db_connection = db_operations.postgres_connection();
+    db_cursor = db_connection.cursor()
+    db_operations.insert(db_cursor, "INSERT INTO tokens (user_id, token, expire_at) VALUES (%s, %s, %s);",
                          (user.id, access_token, sql_timestamp_string,))
+    db_connection.commit()
+    db_cursor.close()
+    db_connection.close()
     return Token(access_token=access_token, token_type="bearer")
 
 
@@ -127,8 +142,13 @@ async def refresh_access_token(
         data={"sub": current_user.username}, expires_delta=access_token_expires
     )
     sql_timestamp_string = datetime.fromtimestamp((datetime.now(timezone.utc)+access_token_expires).replace(tzinfo=None).timestamp())
-    db_operations.insert("INSERT INTO tokens (user_id, token, expire_at) VALUES (%s, %s, %s);",
+    db_connection = db_operations.postgres_connection();
+    db_cursor = db_connection.cursor()
+    db_operations.insert(db_cursor, "INSERT INTO tokens (user_id, token, expire_at) VALUES (%s, %s, %s);",
                          (current_user.id, access_token, sql_timestamp_string,))
+    db_connection.commit()
+    db_cursor.close()
+    db_connection.close()
     return Token(access_token=access_token, token_type="bearer")
 
 
@@ -175,14 +195,22 @@ async def get_clients(
     else:
         args = (offset,)
     query = f"""SELECT id FROM clients {additional_string} LIMIT 20 OFFSET %s"""
-    result_raw = db_operations.select(query, args)
-    if len(result_raw) == 0:
-        raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
-    result = []
-    for entry in result_raw:
-        client = Client(entry[0])
-        result.append(client.get_info())
-    return result
+    try:
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        result_raw = db_operations.select(db_cursor, query, args)
+        if len(result_raw) == 0:
+            raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
+        result = []
+        for entry in result_raw:
+            client = Client(db_cursor, entry[0])
+            result.append(client.get_info())
+        return result
+    except:
+        raise
+    finally:
+        db_cursor.close()
+        db_connection.close()
 
 @app.post("/clients")
 async def create_client(
@@ -230,7 +258,12 @@ async def create_client(
             VALUES (%s, %s, %s)
         """
         args = (new_client.name, new_client.email, new_client.cpf,)
-        result = db_operations.insert(query, args, 'id')
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        result = db_operations.insert(db_cursor, query, args, 'id')
+        db_connection.commit()
+        db_cursor.close()
+        db_connection.close()
         return {"message": "Cliente cadastrado com sucesso", "id": result}
 
 @app.get("/clients/{id}")
@@ -253,10 +286,15 @@ async def get_client_by_id(
             }
     '''
     try:
-        return Client(id).get_info()
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        return Client(db_cursor, id).get_info()
     except ObjectNotFound:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Cliente não localizado")
-    
+    finally:
+        db_cursor.close()
+        db_connection.close()
+
 @app.put("/clients/{id}")
 async def put_client(
     current_user: Annotated[User, Depends(utils.get_current_active_user)],
@@ -298,49 +336,60 @@ async def put_client(
     if new_information.cpf == None and new_information.name == None and new_information.email == None:
         raise HTTPException(status_code=400, detail= "Necessita de ao menos uma informação para atualizar")
     try:
-        if type(id) != int or id<1:
-            raise ObjectNotFound
-        client = Client(id = id)
-    except ObjectNotFound:
-        raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
-    
-    values = []
-    name_field = ''
-    cpf_field = ''
-    email_field = ''
-    if new_information.name != None:
-        if new_information.name == '':
-            raise HTTPException(status_code=400, detail= "Nome inválido")
-        name_field = 'name = %s,'
-        values.append(new_information.name)
-    if new_information.cpf != None:
-        if not utils.validate_cpf(new_information.cpf):
-            raise HTTPException(status_code=400, detail= "CPF inválido")
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
         try:
-            utils.get_client(new_information.cpf)
-            raise HTTPException(status_code=400, detail= "CPF já existe")
+            if type(id) != int or id<1:
+                raise ObjectNotFound
+            client = Client(db_cursor, id = id)
         except ObjectNotFound:
-            cpf_field = 'cpf = %s,'
-            values.append(new_information.cpf)
-    if new_information.email != None:
-        if not utils.validate_email(new_information.email):
-            raise HTTPException(status_code=400, detail= "E-mail inválido")
-        try:
-            utils.get_client(new_information.email)
-            raise HTTPException(status_code=400, detail= "E-mail já existe")
-        except ObjectNotFound:
-            email_field = 'email = %s,'
-            values.append(new_information.email)
-    query = f"""UPDATE clients SET {name_field} {cpf_field} {email_field} where id = %s """
-    query = re.sub(' +', ' ', query)
-    query = query.replace(", where", " where")
-    values.append(id)
-    result = db_operations.insert(query, values, "id")
-    updated_client = Client(id = result)
-    return {
-        "message": "Cliente atualizado com sucesso",
-        "detail": updated_client.get_info()
-    }
+            raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
+        
+        values = []
+        name_field = ''
+        cpf_field = ''
+        email_field = ''
+        if new_information.name != None:
+            if new_information.name == '':
+                raise HTTPException(status_code=400, detail= "Nome inválido")
+            name_field = 'name = %s,'
+            values.append(new_information.name)
+        if new_information.cpf != None:
+            if not utils.validate_cpf(new_information.cpf):
+                raise HTTPException(status_code=400, detail= "CPF inválido")
+            try:
+                utils.get_client(new_information.cpf)
+                raise HTTPException(status_code=400, detail= "CPF já existe")
+            except ObjectNotFound:
+                cpf_field = 'cpf = %s,'
+                values.append(new_information.cpf)
+        if new_information.email != None:
+            if not utils.validate_email(new_information.email):
+                raise HTTPException(status_code=400, detail= "E-mail inválido")
+            try:
+                utils.get_client(new_information.email)
+                raise HTTPException(status_code=400, detail= "E-mail já existe")
+            except ObjectNotFound:
+                email_field = 'email = %s,'
+                values.append(new_information.email)
+        query = f"""UPDATE clients SET {name_field} {cpf_field} {email_field} where id = %s """
+        query = re.sub(' +', ' ', query)
+        query = query.replace(", where", " where")
+        values.append(id)
+        result = db_operations.insert(db_cursor, query, values, "id")
+        updated_client = Client(db_cursor, id = result)
+        if updated_client.get_info() == client.get_info():
+            raise
+        db_connection.commit()
+        return {
+            "message": "Cliente atualizado com sucesso",
+            "detail": updated_client.get_info()
+        }
+    except:
+        raise
+    finally:
+        db_cursor.close()
+        db_connection.close()
 
 @app.delete("/clients/{id}")
 async def delete_client(
@@ -363,16 +412,26 @@ async def delete_client(
     if current_user.role > admin_role_id:
         raise HTTPException(status_code=403, detail= "Apenas Admins podem deletar clientes")
     try:
-        if type(id) != int or id<1:
-            raise ObjectNotFound
-        client = Client(id = id)
-    except ObjectNotFound:
-        raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
-    query = """
-        DELETE FROM clients WHERE id = %s
-    """
-    result = db_operations.insert(query, (id,))
-    return {"message": "Cliente deletado com sucesso"}
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        try:
+            if type(id) != int or id<1:
+                raise ObjectNotFound
+            client = Client(db_cursor, id = id)
+        except ObjectNotFound:
+            raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
+        query = """
+            DELETE FROM clients WHERE id = %s
+        """
+        result = db_operations.insert(db_cursor, query, (id,))
+        db_connection.commit()
+        return {"message": "Cliente deletado com sucesso"}
+    except:
+        raise
+    finally:
+        db_cursor.close()
+        db_connection.close()
+
 
 
 # PRODUCTS ROUTES ------------------------------------------------------------------------------------------------
@@ -431,37 +490,45 @@ async def get_products(
     category_string = ''
     sell_value_string = ''
     available_string = ''
-    if category != None and category != '':
-        try:
-            category_id = utils.get_section_id(category)
-            category_string = "section_id = %s AND "
-            args.append(category_id)
-        except ObjectNotFound:
-            raise HTTPException(status_code=400, detail= "Categoria não localizada, por favor redefina o filtro")
-    
-    if sell_value > 0:
-        sell_value_string = "sell_value <= %s AND "
-        args.append(sell_value)
+    try:
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        if category != None and category != '':
+            try:
+                category_id = utils.get_section_id(db_cursor, category)
+                category_string = "section_id = %s AND "
+                args.append(category_id)
+            except ObjectNotFound:
+                raise HTTPException(status_code=400, detail= "Categoria não localizada, por favor redefina o filtro")
+        
+        if sell_value > 0:
+            sell_value_string = "sell_value <= %s AND "
+            args.append(sell_value)
 
-    if available:
-        available_string = "stock > 0 AND "
-    
-    args.append(offset)
-    query = f"""
-        SELECT * FROM products {category_string}{sell_value_string}{available_string} LIMIT 20 OFFSET %s
-    """
-    query = re.sub(' +', ' ', query)
-    query = query.replace(" AND LIMIT", " LIMIT")
-    if len(category_string+sell_value_string+available_string)>0:
-        query = query.replace("FROM products", "FROM products WHERE")
-    result_raw = db_operations.select(query, args)
-    if len(result_raw) == 0:
-        raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
-    result = []
-    for entry in result_raw:
-        product = Product(entry[0])
-        result.append(product.get_info())
-    return result
+        if available:
+            available_string = "stock > 0 AND "
+        
+        args.append(offset)
+        query = f"""
+            SELECT * FROM products {category_string}{sell_value_string}{available_string} LIMIT 20 OFFSET %s
+        """
+        query = re.sub(' +', ' ', query)
+        query = query.replace(" AND LIMIT", " LIMIT")
+        if len(category_string+sell_value_string+available_string)>0:
+            query = query.replace("FROM products", "FROM products WHERE")
+        result_raw = db_operations.select(db_cursor, query, args)
+        if len(result_raw) == 0:
+            raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
+        result = []
+        for entry in result_raw:
+            product = Product(db_cursor, entry[0])
+            result.append(product.get_info())
+        return result
+    except:
+        raise
+    finally:
+        db_cursor.close()
+        db_connection.close()
 
 @app.post("/products")
 async def create_product(
@@ -523,44 +590,54 @@ async def create_product(
         except ValueError:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Prazo de validade inválido")
     try:
-        query = "SELECT id FROM sections where id=%s"
-        result = db_operations.select(query, (new_product.section_id,))
-        if len(result) < 1:
-            raise ObjectNotFound
-    except ObjectNotFound:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "ID de categoria inválido")
-    try:
-        existing_product = Product(barcode=new_product.barcode)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Código de barras já existe") 
-    except ObjectNotFound:
-        query = """
-                INSERT INTO products (description, sell_value, barcode, section_id, stock, expiration_date)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """
-        args = (
-            new_product.description,
-            new_product.sell_value,
-            new_product.barcode,
-            new_product.section_id,
-            new_product.stock,
-            new_product.expiration_date,
-        )
-        result = db_operations.insert(query, args, 'id')
-        saved_product = Product(result)
-        message = "Produto cadastrado com sucesso"
-        errored_image = False
-        if new_product.images!=None:
-            for image in new_product.images:
-                try:
-                    saved_product.insert_image(image)
-                except:
-                    if not errored_image:
-                        message += ". Uma ou mais imagem não pôde ser salva..."
-                        errored_image = True
-        return {
-            "message": message,
-            "details": saved_product.get_info()
-            }
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        try:
+            query = "SELECT id FROM sections where id=%s"
+            result = db_operations.select(db_cursor, query, (new_product.section_id,))
+            if len(result) < 1:
+                raise ObjectNotFound
+        except ObjectNotFound:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "ID de categoria inválido")
+        try:
+            existing_product = Product(db_cursor, barcode=new_product.barcode)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Código de barras já existe") 
+        except ObjectNotFound:
+            query = """
+                    INSERT INTO products (description, sell_value, barcode, section_id, stock, expiration_date)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """
+            args = (
+                new_product.description,
+                new_product.sell_value,
+                new_product.barcode,
+                new_product.section_id,
+                new_product.stock,
+                new_product.expiration_date,
+            )
+            result = db_operations.insert(db_cursor, query, args, 'id')
+            db_connection.commit()
+            saved_product = Product(db_cursor, result)
+            message = "Produto cadastrado com sucesso"
+            errored_image = False
+            if new_product.images!=None:
+                for image in new_product.images:
+                    try:
+                        saved_product.insert_image(image)
+                    except:
+                        if not errored_image:
+                            message += ". Uma ou mais imagem não pôde ser salva..."
+                            errored_image = True
+            db_connection.commit()
+            return {
+                "message": message,
+                "details": saved_product.get_info()
+                }
+    except:
+        raise
+    finally:
+        db_cursor.close()
+        db_connection.close()
 
 @app.get("/products/{id}")
 async def get_produc_by_id(
@@ -589,9 +666,14 @@ async def get_produc_by_id(
             }
     '''
     try:
-        return Product(id).get_info()
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        return Product(db_cursor, id).get_info()
     except ObjectNotFound:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Produto não localizado")
+    finally:
+        db_cursor.close()
+        db_connection.close()
     
 @app.put("/products/{id}")
 async def put_product(
@@ -649,7 +731,7 @@ async def put_product(
     if current_user.role > admin_role_id:
         raise HTTPException(status_code=403, detail= "Apenas Admins podem editar productes")
     try:
-        product = Product(id = id)
+        product = Product(db_cursor, id = id)
     except ObjectNotFound:
         raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
     
@@ -677,7 +759,7 @@ async def put_product(
         if new_information.barcode == '':
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Barcode inválido")
         try:
-            existing_product = Product(barcode=new_information.barcode)
+            existing_product = Product(db_cursor, barcode=new_information.barcode)
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Barcode já existe")
         except ObjectNotFound:
             barcode_field = 'barcode = %s, '
@@ -686,7 +768,7 @@ async def put_product(
     if new_information.section_id != None:
         try:
             query = "SELECT * FROM sections WHERE id=%s"
-            result = db_operations.select(query, (new_information.section_id,))
+            result = db_operations.select(db_cursor, query, (new_information.section_id,))
             if len(result) < 1:
                 raise ObjectNotFound
         except ObjectNotFound:
@@ -720,22 +802,31 @@ async def put_product(
     query = re.sub(' +', ' ', query)
     query = query.replace(", WHERE", " WHERE")
     values.append(id)
-    result = db_operations.insert(query, values, "id")
-    updated_product = Product(id = result)
-    message = "Produto atualizado com sucesso"
-    errored_image = False
-    if new_information.images!=None:
-        for image in new_information.images:
-            try:
-                updated_product.insert_image(image)
-            except:
-                if not errored_image:
-                    message += ". Uma ou mais imagem não pôde ser salva..."
-                    errored_image = True
-    return {
-        "message": message,
-        "detail": updated_product.get_info()
-    }
+    try:
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        result = db_operations.insert(db_cursor, query, values, "id")
+        updated_product = Product(db_cursor, id = result)
+        message = "Produto atualizado com sucesso"
+        errored_image = False
+        if new_information.images!=None:
+            for image in new_information.images:
+                try:
+                    updated_product.insert_image(image)
+                except:
+                    if not errored_image:
+                        message += ". Uma ou mais imagem não pôde ser salva..."
+                        errored_image = True
+        db_connection.commit()
+        return {
+            "message": message,
+            "detail": updated_product.get_info()
+        }
+    except:
+        raise
+    finally:
+        db_cursor.close()
+        db_connection.close()
 
 @app.delete("/products/{id}")
 async def delete_product(
@@ -758,16 +849,25 @@ async def delete_product(
     if current_user.role > admin_role_id:
         raise HTTPException(status_code=403, detail= "Apenas Admins podem deletar produtos")
     try:
-        if type(id) != int or id<1:
-            raise ObjectNotFound
-        product = Product(id = id)
-    except ObjectNotFound:
-        raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
-    query = """
-        DELETE FROM products WHERE id = %s
-    """
-    result = db_operations.insert(query, (id,))
-    return {"message": "Produto deletado com sucesso"}
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        try:
+            if type(id) != int or id<1:
+                raise ObjectNotFound
+            product = Product(db_cursor, id = id)
+        except ObjectNotFound:
+            raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
+        query = """
+            DELETE FROM products WHERE id = %s
+        """
+        result = db_operations.insert(db_cursor, query, (id,))
+        db_connection.commit()
+        return {"message": "Produto deletado com sucesso"}
+    except:
+        raise
+    finally:
+        db_cursor.close()
+        db_connection.close()
 
 # ORDERS ROUTES ------------------------------------------------------------------------------------------------
 
@@ -849,7 +949,6 @@ async def get_orders(
                     
     '''
     args = []
-    #date_field = "o.created_at AT TIME ZONE 'America/Sao_Paulo' BETWEEN %s AND %s "
     date_field = "o.created_at BETWEEN %s AND %s"
     section_field = ''
     id_field = ''
@@ -873,75 +972,70 @@ async def get_orders(
     end_date = end_date.strftime("%Y-%m-%d") + " 23:59:59+00"
     args.append(start_date)
     args.append(end_date)
-    if section != None and section != '':
-        try:
-            section_id = utils.get_section_id(section)
-            section_field = "AND s.id = '%s' "
-            args.append(section_id)
-        except utils.ObjectNotFound:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Categoria não localizada, por favor redefina o filtro")
+    try:
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        if section != None and section != '':
+            try:
+                section_id = utils.get_section_id(db_cursor, section)
+                section_field = "AND s.id = '%s' "
+                args.append(section_id)
+            except utils.ObjectNotFound:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Categoria não localizada, por favor redefina o filtro")
 
-    if id != None and id > 0:
-        id_field = "AND o.id = '%s' "
-        args.append(id)
+        if id != None and id > 0:
+            id_field = "AND o.id = '%s' "
+            args.append(id)
 
-    if order_status != None and order_status != '':
-        try:
-            order_status_id = utils.get_status_id(order_status)
-            order_status_field = "AND o.status = '%s' "
-            args.append(order_status_id)
-        except utils.ObjectNotFound:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Status não localizado, por favor redefina o filtro")
+        if order_status != None and order_status != '':
+            try:
+                order_status_id = utils.get_status_id(db_cursor, order_status)
+                order_status_field = "AND o.status = '%s' "
+                args.append(order_status_id)
+            except utils.ObjectNotFound:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Status não localizado, por favor redefina o filtro")
 
-    if client_id != None and client_id > 0:
-        try:
-            client = Client(id = client_id)
-            client_id_field = "AND c.id = '%s' "
-            args.append(client_id)
-        except ObjectNotFound:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Cliente não localizado, por favor redefina o filtro")
-    args.append(offset)
-    # query = f"""
-    #     SELECT DISTINCT o.id
-    #     FROM orders o
-    #     JOIN orders_products op ON o.id = op.order_id
-    #     JOIN products p ON op.product_id = p.id
-    #     JOIN sections s ON p.section_id = s.id
-    #     JOIN clients c ON o.client_id = c.id
-    #     WHERE
-    #     {date_field}
-    #     {section_field}
-    #     {id_field}
-    #     {order_status_field}
-    #     {client_id_field}
-    #     LIMIT 20 OFFSET %s;
-    # """
-    query = f"""
-        SELECT o.id
-        FROM orders o
-        JOIN orders_products op ON o.id = op.order_id
-        JOIN products p ON op.product_id = p.id
-        JOIN sections s ON p.section_id = s.id
-        JOIN clients c ON o.client_id = c.id
-        WHERE
-        {date_field}
-        {section_field}
-        {id_field}
-        {order_status_field}
-        {client_id_field}
-        GROUP BY o.id
-        LIMIT 20 OFFSET %s;
-    """
-    query = re.sub('\n+', ' ', query)
-    query = re.sub(' +', ' ', query)
-    result_raw = db_operations.select(query, args)
-    if len(result_raw) == 0:
-        raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
-    result = []
-    for entry in result_raw:
-        order = Order(entry)
-        result.append(order.get_info())
-    return result
+        if client_id != None and client_id > 0:
+            try:
+                client = Client(db_cursor, id = client_id)
+                client_id_field = "AND c.id = '%s' "
+                args.append(client_id)
+            except ObjectNotFound:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Cliente não localizado, por favor redefina o filtro")
+        args.append(offset)
+        
+        query = f"""
+            SELECT o.id
+            FROM orders o
+            JOIN orders_products op ON o.id = op.order_id
+            JOIN products p ON op.product_id = p.id
+            JOIN sections s ON p.section_id = s.id
+            JOIN clients c ON o.client_id = c.id
+            WHERE
+            {date_field}
+            {section_field}
+            {id_field}
+            {order_status_field}
+            {client_id_field}
+            GROUP BY o.id
+            LIMIT 20 OFFSET %s;
+        """
+        query = re.sub('\n+', ' ', query)
+        query = re.sub(' +', ' ', query)
+        result_raw = db_operations.select(db_cursor, query, args)
+        if len(result_raw) == 0:
+            raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
+        result = []
+        for entry in result_raw:
+            order = Order(db_cursor, entry)
+            result.append(order.get_info())
+        db_connection.commit()
+        return result
+    except:
+        raise
+    finally:
+        db_cursor.close()
+        db_connection.close()
 
 @app.post("/orders")
 async def create_order(
@@ -985,41 +1079,51 @@ async def create_order(
     if len(new_order.products)<1:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Ao menos um item obrigatório")
     try:
-        client = Client(new_order.client_id)
-    except ObjectNotFound:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Cliente não localizado")
-    
-    try:
-        product_list = [
-                {
-                    'product':Product(x.product_id),
-                    'quantity':x.quantity
-                } for x in new_order.products
-            ]
-    except ObjectNotFound:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Um ou mais produtos não localizado")
-    
-    insufficient_items = []
-    for item in product_list:
-        if item['quantity'] > item['product'].stock:
-            insufficient_items.append(
-                {
-                    'product_id': item['product'].id,
-                    'description': item['product'].description,
-                    'stock': item['product'].stock,
-                    'requested': item['quantity'],
-                    'delta': item['product'].stock - item['quantity']
-                }
-            )
-    if len(insufficient_items)>0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= {'message':"Um ou mais produtos não possui estoque sucifiente", 'details': insufficient_items})
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        try:
+            client = Client(db_cursor, new_order.client_id)
+        except ObjectNotFound:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Cliente não localizado")
+        
+        try:
+            product_list = [
+                    {
+                        'product':Product(db_cursor, x.product_id),
+                        'quantity':x.quantity
+                    } for x in new_order.products
+                ]
+        except ObjectNotFound:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Um ou mais produtos não localizado")
+        
+        insufficient_items = []
+        for item in product_list:
+            if item['quantity'] > item['product'].stock:
+                insufficient_items.append(
+                    {
+                        'product_id': item['product'].id,
+                        'description': item['product'].description,
+                        'stock': item['product'].stock,
+                        'requested': item['quantity'],
+                        'delta': item['product'].stock - item['quantity']
+                    }
+                )
+        if len(insufficient_items)>0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= {'message':"Um ou mais produtos não possui estoque sucifiente", 'details': insufficient_items})
 
-    query = "INSERT INTO orders (client_id) VALUES (%s)"
-    order = Order(db_operations.insert(query, (new_order.client_id,), 'id'))
-    for item in product_list:
-        order.include_product(item['product'].id, item['quantity'])
-    
-    return {"message": "Ordem criada com sucesso", "id": order.id}
+        query = "INSERT INTO orders (client_id) VALUES (%s)"
+        new_id = db_operations.insert(db_cursor, query, (new_order.client_id,), 'id')
+        order = Order(db_cursor, new_id)
+
+        for item in product_list:
+            order.include_product(item['product'].id, item['quantity'])
+        db_connection.commit()
+        return {"message": "Ordem criada com sucesso", "id": order.id}
+    except:
+        raise
+    finally:
+        db_cursor.close()
+        db_connection.close()
 
 @app.get("/orders/{id}")
 async def get_order(
@@ -1054,9 +1158,14 @@ async def get_order(
             }
     '''
     try:
-        return Order(id).get_info()
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        return Order(db_cursor, id).get_info()
     except ObjectNotFound:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Ordem não localizada")
+    finally:
+        db_cursor.close()
+        db_connection.close()
     
 @app.put("/orders/{id}")
 async def update_order(
@@ -1122,7 +1231,7 @@ async def update_order(
 
     '''
     try:
-        order = Order(id)
+        order = Order(db_cursor, id)
         if not order.is_open():
             raise OrderCantBeChanged
     except ObjectNotFound:
@@ -1131,7 +1240,7 @@ async def update_order(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Ordem não pode ser alterada. Verifique se a mesma não está cancelada ou entregue.")
     if new_info.status != None:
         try:
-            status_id = utils.get_status_id(new_info.status)
+            status_id = utils.get_status_id(db_cursor, new_info.status)
         except utils.ObjectNotFound:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Status inválido")
         try:
@@ -1140,33 +1249,43 @@ async def update_order(
                 return {"message": "Ordem cancelada com sucesso."}
         except OrderCantBeChanged:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Ordem não pode ser alterada. Verifique se a mesma não está cancelada ou entregue.")
-    if new_info.products_to_include != None:
-        try:
-            for item in new_info.products_to_include:
-                product = Product(item.product_id)
-                quantity = item.quantity
-                order.include_product(product.id, quantity)
-        except ValueError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Um ou mais produto informado possui quantidade além do disponível no estoque.")
-        except ObjectNotFound:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Um ou mais produto não foi localizado")
-    if new_info.products_to_remove != None:
-        try:
-            for item in new_info.products_to_remove:
-                product = Product(item.product_id)
-                quantity = item.quantity
-                order.remove_product(product.id, quantity)
-        except ValueError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Um ou mais produto informado possui quantidade além do disponível na ordem.")
-        except ObjectNotFound:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Um ou mais produto não foi localizado")
-        except ItemNotFound:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Um ou mais produto não existe na ordem")
-    order.change_status(status_id)
-    return {
-        "message": "Ordem atualizada com sucesso",
-        "details": order.get_info()
-    }
+    try:
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        if new_info.products_to_include != None:
+            try:
+                for item in new_info.products_to_include:
+                    product = Product(db_cursor, item.product_id)
+                    quantity = item.quantity
+                    order.include_product(product.id, quantity)
+            except ValueError:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Um ou mais produto informado possui quantidade além do disponível no estoque.")
+            except ObjectNotFound:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Um ou mais produto não foi localizado")
+        if new_info.products_to_remove != None:
+            try:
+                for item in new_info.products_to_remove:
+                    product = Product(db_cursor, item.product_id)
+                    quantity = item.quantity
+                    order.remove_product(db_cursor, product.id, quantity)
+            except ValueError:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Um ou mais produto informado possui quantidade além do disponível na ordem.")
+            except ObjectNotFound:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Um ou mais produto não foi localizado")
+            except ItemNotFound:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail= "Um ou mais produto não existe na ordem")
+        order.change_status(db_cursor, status_id)
+        db_connection.commit()
+        return {
+            "message": "Ordem atualizada com sucesso",
+            "details": order.get_info()
+        }
+    except:
+        raise
+    finally:
+        db_cursor.close()
+        db_connection.close()
+
 
 @app.delete("/orders/{id}")
 async def delete_order(
@@ -1189,15 +1308,24 @@ async def delete_order(
     if current_user.role > admin_role_id:
         raise HTTPException(status_code=403, detail= "Apenas Admins podem deletar ordens")
     try:
-        order = Order(id = id)
-    except ObjectNotFound:
-        raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
-    try:
-        order.cancel_order()
+        db_connection = db_operations.postgres_connection();
+        db_cursor = db_connection.cursor()
+        try:
+            order = Order(db_cursor, id = id)
+        except ObjectNotFound:
+            raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
+        try:
+            order.cancel_order()
+        except:
+            pass
+        query = """
+            DELETE FROM orders WHERE id = %s
+        """
+        result = db_operations.insert(db_cursor, query, (id,))
+        db_connection.commit()
+        return {"message": "Ordem deletada com sucesso"}
     except:
-        pass
-    query = """
-        DELETE FROM orders WHERE id = %s
-    """
-    result = db_operations.insert(query, (id,))
-    return {"message": "Ordem deletada com sucesso"}
+        raise
+    finally:
+        db_cursor.close()
+        db_connection.close()

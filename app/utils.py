@@ -221,29 +221,21 @@ def generate_cpf():
     string_cpf = [str(x) for x in cpf]
     return ''.join(string_cpf)
 
-def get_section_id(name: str):
+def get_section_id(db_cursor, name: str):
     try:
         name = '%'+name.lower()+'%'
-        section_id = db_operations.select("SELECT id from sections where name ILIKE %s LIMIT 1", (name,), 1)[0]
+        section_id = db_operations.select(db_cursor, "SELECT id from sections where name ILIKE %s LIMIT 1", (name,), 1)[0]
         return section_id
     except:
         raise ObjectNotFound
 
-def get_status_id(name: str):
+def get_status_id(db_cursor, name: str):
     try:
         name = '%'+name.lower()+'%'
-        status_id = db_operations.select("SELECT id from order_status where description ILIKE %s LIMIT 1", (name,), 1)[0]
+        status_id = db_operations.select(db_cursor, "SELECT id from order_status where description ILIKE %s LIMIT 1", (name,), 1)[0]
         return status_id
     except:
         raise ObjectNotFound
-
-def get_status_description(id: str):
-    try:
-        description = db_operations.select("SELECT description from order_status where id = %s LIMIT 1", (id,), 1)[0]
-        return description
-    except:
-        raise ObjectNotFound
-
 
 def convert_to_local_timezone(time: datetime, local_timezone:str = 'America/Sao_Paulo'):
     local_tz = pytz.timezone(local_timezone)
