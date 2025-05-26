@@ -25,6 +25,8 @@ async def get_products(
 ):
     '''Returns products list, limit of 20 entries.
     
+    All parameters are optional.
+    
         offset (int, optional, default = 0): Sets the offset for the resulting list.
         category (str, optional, default = None): Filter results by section.
         sell_value (float, optional, default = 0): Filter results lower than the specified sell_value if > 0.
