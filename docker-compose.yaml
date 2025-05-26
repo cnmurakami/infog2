@@ -13,7 +13,7 @@ services:
       - ./app:/app
 
   db:
-    image: postgres:17.5
+    image: postgres:17.5-alpine
     ports: 
       - "5431:5432"
       - "5432:5432"
