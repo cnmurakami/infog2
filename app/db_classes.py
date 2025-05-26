@@ -1,6 +1,8 @@
 import db_operations
 import base64
 
+admin_role_id = 1
+
 class ObjectNotFound(Exception):
     pass
 
