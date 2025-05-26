@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS order_status (
 
 CREATE TABLE IF NOT EXISTS orders (
     id SERIAL PRIMARY KEY,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     status SMALLINT DEFAULT 2 REFERENCES clients(id) ON DELETE CASCADE,
     client_id INT NOT NULL REFERENCES clients(id) ON DELETE CASCADE
 );
@@ -200,11 +200,11 @@ INSERT INTO order_status (description) VALUES
 ON CONFLICT DO NOTHING;
 
 INSERT INTO orders (created_at, client_id, status) VALUES
-    (NULL, 7, 3),
+    (NOW(), 7, 3),
     ('2025-01-21 12:03:58+00', 12, 2),
     ('2025-04-08 08:27:14+00', 18, 5),
     ('2025-05-12 17:15:09+00', 1, 4),
-    (NULL, 25, 1),
+    (NOW(), 25, 1),
     ('2025-03-30 22:54:18+00', 6, 3),
     ('2025-01-17 05:21:47+00', 3, 2),
     ('2025-04-19 14:36:52+00', 14, 5),
@@ -216,7 +216,7 @@ INSERT INTO orders (created_at, client_id, status) VALUES
     ('2025-05-09 10:17:53+00', 11, 4),
     ('2025-02-14 13:06:12+00', 8, 2),
     ('2025-03-18 21:58:24+00', 24, 1),
-    (NULL, 2, 3),
+    (NOW(), 2, 3),
     ('2025-04-10 07:47:30+00', 10, 5),
     ('2025-05-20 18:39:57+00', 15, 2),
     ('2025-02-07 15:28:14+00', 21, 4),
@@ -234,7 +234,7 @@ INSERT INTO orders (created_at, client_id, status) VALUES
     ('2025-01-19 09:54:48+00', 12, 5),
     ('2025-04-14 03:33:06+00', 3, 4),
     ('2025-05-01 21:27:18+00', 19, 3),
-    (NULL, 14, 2),
+    (NOW(), 14, 2),
     ('2025-03-12 19:21:06+00', 5, 1),
     ('2025-01-24 08:02:12+00', 22, 5),
     ('2025-04-30 11:47:53+00', 8, 4),
